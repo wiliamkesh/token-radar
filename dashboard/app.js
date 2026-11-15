@@ -330,7 +330,8 @@
         el('li', null, el('b', { text: 'Filter, then sort. ' }), 'Search by name, narrow by category or chain, and flip the sort on any column. The count above the table says how many rows the filter leaves.'),
         el('li', null, el('b', { text: 'Open a row for its model and farm plan. ' }), 'The detail drawer shows the exact inputs behind the implied value and the six farm steps, with what each step costs and how long it takes.'),
         el('li', null, el('b', { text: 'Compare two protocols side by side. ' }), 'Tick Compare on any two rows and the radar lays their figures next to each other, with the stronger figure in each row set bold.'),
-        el('li', null, el('b', { text: 'Take the board with you. ' }), 'Download board as CSV exports the filtered rows, so the ranking can be checked in a spreadsheet instead of taken on trust.')
+        el('li', null, el('b', { text: 'Take the board with you. ' }), 'Download board as CSV exports the filtered rows, so the ranking can be checked in a spreadsheet instead of taken on trust.'),
+        el('li', null, el('b', { text: 'See what already trades. ' }), 'The Live token tab sets the protocols that already have a token aside, with their market caps as facts, so the pre-token ranking is never mixed with the market\'s own values.')
       )
     );
   }
@@ -369,6 +370,7 @@
   }
 
   function lede() {
+    var totalImplied = DATA.rows.reduce(function (sum, r) { return sum + r.implied_value_usd; }, 0);
     return el('section', { class: 'lede' },
       el('div', null,
         el('h1', { text: DATA.watchlist_size + ' watchlist protocols, ranked by implied value' }),
@@ -378,7 +380,8 @@
         el('div', { class: 'fact' }, el('span', { text: 'Watchlist covered' }), el('b', { text: DATA.watchlist_size + ' / ' + DATA.watchlist_size })),
         el('div', { class: 'fact' }, el('span', { text: 'Pre-token rows scored' }), el('b', { text: String(DATA.board_size) })),
         el('div', { class: 'fact' }, el('span', { text: 'Early rows below the floor' }), el('b', { text: String(DATA.early_size) })),
-        el('div', { class: 'fact' }, el('span', { text: 'Live-token protocols set aside' }), el('b', { text: String(DATA.live_size) }))
+        el('div', { class: 'fact' }, el('span', { text: 'Live-token protocols set aside' }), el('b', { text: String(DATA.live_size) })),
+        el('div', { class: 'fact' }, el('span', { text: 'Total implied value' }), el('b', { text: fmtUsd(totalImplied) }))
       )
     );
   }
