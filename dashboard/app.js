@@ -7,7 +7,145 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var app = document.getElementById('board');
-  var state = { q: '', category: 'all', chain: 'all', tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
+  var state = { q: '', category: 'all', chain: 'all', tab: 'pre-token', sort: 'implied', dir: -1, selected: null, compare: [] };
+
+  // Two protocols, side by side: the comparison is the radar's second lens. A single rank says
+  // which protocol the model values more; a comparison says why, by laying the two protocols'
+  // inputs next to each other — TVL, growth, age, category multiple and farm plan — so the
+  // difference in implied value is a difference in figures, not a difference in names.
+  function rowBySlug(slug) {
+    for (var i = 0; i < DATA.rows.length; i++) if (DATA.rows[i].slug === slug) return DATA.rows[i];
+    return null;
+  }
+  function isComparing(slug) { return state.compare.indexOf(slug) >= 0; }
+  function toggleCompare(slug) {
+    var at = state.compare.indexOf(slug);
+    if (at >= 0) state.compare.splice(at, 1);
+    else if (state.compare.length < 2) state.compare.push(slug);
+    else { state.compare.shift(); state.compare.push(slug); }
+    writeHash();
+    render();
+  }
+  function compareClear() { state.compare = []; writeHash(); render(); }
+  function comparePair() {
+    if (state.compare.length < 2) return null;
+    var a = rowBySlug(state.compare[0]);
+    var b = rowBySlug(state.compare[1]);
+    if (!a || !b) return null;
+    return { a: a, b: b };
+  }
+  // One row of the comparison: a label, the two protocols' values, and which one is ahead.
+  // A dash means the figure is missing, not zero; a missing growth or age is not a low one.
+  function compareRow(label, av, bv, better) {
+    var ahead = null;
+    if (better === 'high' && av !== null && bv !== null && av !== bv) ahead = av > bv ? 'a' : 'b';
+    if (better === 'low' && av !== null && bv !== null && av !== bv) ahead = av < bv ? 'a' : 'b';
+    function cell(v, side) {
+      var text = v === null || v === undefined ? 'n/a' : String(v);
+      return el('td', { class: 'num' + (ahead === side ? ' win' : ''), text: text });
+    }
+    return el('tr', null, el('th', { scope: 'row', text: label }), cell(av, 'a'), cell(bv, 'b'));
+  }
+  function comparePanel() {
+    var pair = comparePair();
+    if (!pair) {
+      if (state.compare.length === 1) {
+        var only = rowBySlug(state.compare[0]);
+        return el('section', { class: 'panel compare' },
+          el('h2', { text: 'Compare two protocols' }),
+          el('p', { class: 'sub', text: (only ? only.name : 'One protocol') + ' is picked. Pick one more row to see them side by side.' }),
+          el('button', { class: 'button', type: 'button', text: 'Clear pick', onclick: compareClear })
+        );
+      }
+      return el('section', { class: 'panel compare' },
+        el('h2', { text: 'Compare two protocols' }),
+        el('p', { class: 'sub', text: 'Tick Compare on any two rows and the radar lays their figures side by side: TVL, growth, age, category multiple, implied value and the first farm step. The rank says which is ahead; the comparison says by how much and why.' })
+      );
+    }
+    var a = pair.a, b = pair.b;
+    var aSteps = farmSteps(a), bSteps = farmSteps(b);
+    var aFirst = aSteps.length ? aSteps[0] : 'n/a';
+    var bFirst = bSteps.length ? bSteps[0] : 'n/a';
+    return el('section', { class: 'panel compare' },
+      el('div', { class: 'compare-head' },
+        el('h2', { text: 'Compare' }),
+        el('button', { class: 'button', type: 'button', text: 'Clear comparison', onclick: compareClear })
+      ),
+      el('div', { class: 'table-wrap' },
+        el('table', null,
+          el('thead', null, el('tr', null,
+            el('th', { scope: 'col', text: '' }),
+            el('th', { scope: 'col' }, el('b', { text: a.name }), el('span', { class: 'sub', text: 'Rank ' + a.rank })),
+            el('th', { scope: 'col' }, el('b', { text: b.name }), el('span', { class: 'sub', text: 'Rank ' + b.rank }))
+          )),
+          el('tbody', null,
+            compareRow('Implied value', fmtUsd(a.implied_value_usd), fmtUsd(b.implied_value_usd), 'high'),
+            compareRow('TVL', fmtUsd(a.tvl_usd), fmtUsd(b.tvl_usd), 'high'),
+            compareRow('Seven-day growth', fmtPct(a.change_7d), fmtPct(b.change_7d), 'high'),
+            compareRow('Age with no token', fmtAge(a.age_days), fmtAge(b.age_days), 'high'),
+            compareRow('Category', (a.category || 'Other'), (b.category || 'Other'), null),
+            compareRow('Chains', (a.chains || []).join(', ') || 'n/a', (b.chains || []).join(', ') || 'n/a', null),
+            compareRow('Category multiple', String(a.category_multiple), String(b.category_multiple), 'high'),
+            compareRow('Growth multiplier', String(a.growth_multiplier), String(b.growth_multiplier), 'high'),
+            compareRow('Maturity multiplier', String(a.maturity_multiplier), String(b.maturity_multiplier), 'high'),
+            compareRow('First farm step', aFirst, bFirst, null)
+          )
+        )
+      ),
+      el('p', { class: 'sub', text: 'The bold figure in a row is the one ahead. Implied value is the model\'s whole verdict; the rows above it are the inputs that made it.' })
+    );
+  }
+  // The board as a file: the filtered rows, one per line, so the ranking can be checked in a
+  // spreadsheet instead of taken on trust. The CSV carries the same figures the page shows.
+  function boardCsv(list) {
+    var head = ['rank', 'slug', 'name', 'category', 'chains', 'tvl_usd', 'change_7d', 'age_days', 'category_multiple', 'implied_value_usd', 'watchlist'];
+    function cell(v) {
+      var s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    var lines = [head.join(',')];
+    list.forEach(function (r) {
+      lines.push([r.rank, r.slug, r.name, r.category || '', (r.chains || []).join(';'), r.tvl_usd, r.change_7d === null ? '' : r.change_7d, r.age_days === null ? '' : r.age_days, r.category_multiple, r.implied_value_usd, r.watchlist ? 'yes' : 'no'].map(cell).join(','));
+    });
+    return lines.join('\n') + '\n';
+  }
+  function downloadCsv() {
+    var list = sortedRows(rows());
+    var blob = new Blob([boardCsv(list)], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'token-radar-board.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  // The category leaders: the strongest protocol in each of the board's biggest categories, so a
+  // reader can see at a glance which category holds the radar's top names and which one is thin.
+  function leadersPanel() {
+    var byCat = {};
+    DATA.rows.forEach(function (r) {
+      var key = r.category || 'Other';
+      if (!byCat[key] || r.implied_value_usd > byCat[key].implied_value_usd) byCat[key] = r;
+    });
+    var leaders = Object.keys(byCat).map(function (k) { return byCat[k]; })
+      .sort(function (a, b) { return b.implied_value_usd - a.implied_value_usd; })
+      .slice(0, 8);
+    if (!leaders.length) return null;
+    return el('section', { class: 'panel leaders' },
+      el('h2', { text: 'Category leaders' }),
+      el('p', { class: 'sub', text: 'The strongest pre-token protocol in each category, by implied value. A category with one leader and little behind it is a thin field; a category whose leader is far ahead of the next is a concentrated one.' }),
+      el('div', { class: 'leader-grid' }, leaders.map(function (r) {
+        return el('button', { type: 'button', class: 'leader', onclick: function () { openDetail(r.slug); } },
+          el('span', { class: 'leader-cat', text: r.category || 'Other' }),
+          el('b', { text: r.name }),
+          el('span', { class: 'leader-value', text: fmtUsd(r.implied_value_usd) + ' implied' }),
+          el('span', { class: 'sub', text: 'Rank ' + r.rank + ' · ' + fmtUsd(r.tvl_usd) + ' TVL' })
+        );
+      }))
+    );
+  }
 
   var usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
   function fmtUsd(n) {
@@ -211,11 +349,13 @@
     chainSelect.addEventListener('change', function () { state.chain = chainSelect.value; writeHash(); render(); });
     var pre = el('button', { type: 'button', 'aria-pressed': state.tab === 'pre-token' ? 'true' : 'false', text: 'Pre-token', onclick: function () { state.tab = 'pre-token'; render(); } });
     var live = el('button', { type: 'button', 'aria-pressed': state.tab === 'live' ? 'true' : 'false', text: 'Live token', onclick: function () { state.tab = 'live'; render(); } });
+    var csv = el('button', { type: 'button', class: 'button', text: 'Download board as CSV', onclick: downloadCsv });
     return el('div', { class: 'controls' },
       el('div', { class: 'field' }, el('label', { for: 'q', text: 'Search' }), search),
       el('div', { class: 'field' }, el('label', { for: 'category', text: 'Category' }), select),
       el('div', { class: 'field' }, el('label', { for: 'chain', text: 'Chain' }), chainSelect),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Token status' }), el('div', { class: 'tabs' }, pre, live)),
+      el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Export' }), csv),
       el('span', { class: 'count', text: state.tab === 'pre-token' ? rows().length + ' rows shown' : DATA.live.length + ' live-token protocols' })
     );
   }
@@ -262,7 +402,10 @@
           el('div', { class: 'bar', 'aria-hidden': 'true' }, el('i', { style: 'width:' + Math.max(3, Math.round((r.implied_value_usd / max) * 100)) + '%' })),
           el('span', { class: 'num', text: fmtUsd(r.implied_value_usd) })
         )),
-        el('td', null, el('span', { class: 'status', text: 'no token' }))
+        el('td', null,
+          el('span', { class: 'status', text: 'no token' }),
+          el('button', { type: 'button', class: 'compare-toggle', 'aria-pressed': isComparing(r.slug) ? 'true' : 'false', text: isComparing(r.slug) ? 'Comparing' : 'Compare', onclick: function (e) { e.stopPropagation(); toggleCompare(r.slug); } })
+        )
       );
       tbody.appendChild(tr);
     });
@@ -391,7 +534,11 @@
     shell.appendChild(lede());
     shell.appendChild(controls());
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
-    if (state.tab === 'pre-token') shell.appendChild(modelPanel());
+    if (state.tab === 'pre-token') {
+      shell.appendChild(comparePanel());
+      shell.appendChild(leadersPanel());
+      shell.appendChild(modelPanel());
+    }
     app.appendChild(shell);
     app.setAttribute('aria-busy', 'false');
     if (!dialog.isConnected) app.appendChild(dialog);

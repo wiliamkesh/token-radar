@@ -133,6 +133,35 @@ tbody tr[data-selected="true"] { background: color-mix(in srgb, var(--accent) 8%
 .steps b { display: block; font-weight: 500; }
 .cost { color: var(--muted); font-size: 12px; font-family: var(--font-num); }
 
+/* The comparison: two protocols side by side, with the stronger figure in each row set bold. */
+.compare { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
+.compare-head { display: flex; align-items: center; justify-content: space-between; gap: var(--step-4); }
+.compare table { font-size: 13px; }
+.compare th[scope="row"] { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.compare td.win { font-weight: 700; color: var(--accent); }
+.compare .sub { margin-top: 0; }
+/* The per-row compare toggle: quiet until a protocol is picked, then it reads as picked. */
+.compare-toggle {
+  display: inline-block; margin-left: var(--step-2); padding: 2px var(--step-2);
+  border: 1px solid var(--border); border-radius: 999px; background: transparent;
+  color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.compare-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.compare-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.compare-toggle[aria-pressed="true"]:hover { color: var(--surface); }
+/* The category leaders: one card per category, each a button that opens the protocol. */
+.leaders { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
+.leader-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--step-3); }
+.leader {
+  display: grid; gap: 2px; text-align: left; padding: var(--step-3) var(--step-4);
+  border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface);
+}
+.leader:hover { border-color: var(--accent); }
+.leader-cat { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.leader b { font-weight: 600; font-size: 14px; }
+.leader-value { font-family: var(--font-num); font-size: 13px; color: var(--accent); }
+.leader .sub { margin-top: 0; }
+
 @media (max-width: 900px) {
   .shell { padding: var(--step-4); }
   .lede { grid-template-columns: 1fr; gap: var(--step-4); }
