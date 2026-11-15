@@ -177,24 +177,30 @@
     return Math.max(1, Math.round(row.tvl_usd * multiple * growthMult * maturity));
   }
 
+  // One element, built from a tag, attributes and children. An attribute named `class` sets the
+  // class, `text` sets the text, `html` sets inner HTML, and one starting with `on` wires an event
+  // listener for the event after it; anything else becomes an attribute, skipped when null. A child
+  // may be a string, a node, or an array of either, so a list can be passed as one argument.
   function el(tag, attrs) {
     var node = document.createElement(tag);
     if (attrs) {
       Object.keys(attrs).forEach(function (k) {
-        if (k === 'class') node.className = attrs[k];
-        else if (k === 'text') node.textContent = attrs[k];
-        else if (k === 'html') node.innerHTML = attrs[k];
-        else if (k.slice(0, 2) === 'on') node.addEventListener(k.slice(2), attrs[k]);
-        else if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, attrs[k]);
+        var v = attrs[k];
+        if (v === null || v === undefined) return;
+        if (k === 'class') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k === 'html') node.innerHTML = v;
+        else if (k.slice(0, 2) === 'on') node.addEventListener(k.slice(2), v);
+        else node.setAttribute(k, v);
       });
     }
-    for (var i = 2; i < arguments.length; i++) {
-      var child = arguments[i];
-      if (child === null || child === undefined) continue;
-      if (Array.isArray(child)) child.forEach(function (c) { if (c) node.appendChild(c); });
-      else if (typeof child === 'string') node.appendChild(document.createTextNode(child));
-      else node.appendChild(child);
+    function append(child) {
+      if (child === null || child === undefined) return;
+      if (Array.isArray(child)) { child.forEach(append); return; }
+      if (typeof child === 'string') { node.appendChild(document.createTextNode(child)); return; }
+      node.appendChild(child);
     }
+    for (var i = 2; i < arguments.length; i++) append(arguments[i]);
     return node;
   }
 
@@ -311,6 +317,21 @@
           el('span', { class: 'sub', text: 'Rank ' + r.rank + ' · ' + fmtUsd(r.tvl_usd) + ' TVL · ' + fmtUsd(r.implied_value_usd) + ' implied' })
         );
       }))
+    );
+  }
+  // How to read the board: a short guide for a first-time reader, so the ranking, the filters and
+  // the farm plans need no outside explanation. It sits above the model panel, where a reader who
+  // has just seen the table will look for what it means.
+  function howToPanel() {
+    return el('section', { class: 'panel howto' },
+      el('h2', { text: 'How to read this board' }),
+      el('ol', { class: 'howto-list' },
+        el('li', null, el('b', { text: 'Rank is implied value, strongest first. ' }), 'A protocol at rank 1 is the one the model values most, not the one with the most TVL. The implied-value bar shows each row against the strongest.'),
+        el('li', null, el('b', { text: 'Filter, then sort. ' }), 'Search by name, narrow by category or chain, and flip the sort on any column. The count above the table says how many rows the filter leaves.'),
+        el('li', null, el('b', { text: 'Open a row for its model and farm plan. ' }), 'The detail drawer shows the exact inputs behind the implied value and the six farm steps, with what each step costs and how long it takes.'),
+        el('li', null, el('b', { text: 'Compare two protocols side by side. ' }), 'Tick Compare on any two rows and the radar lays their figures next to each other, with the stronger figure in each row set bold.'),
+        el('li', null, el('b', { text: 'Take the board with you. ' }), 'Download board as CSV exports the filtered rows, so the ranking can be checked in a spreadsheet instead of taken on trust.')
+      )
     );
   }
   // The methodology, in one place: where the figures come from, what the model does with them, and
@@ -570,6 +591,7 @@
       shell.appendChild(comparePanel());
       shell.appendChild(leadersPanel());
       shell.appendChild(moversPanel());
+      shell.appendChild(howToPanel());
       shell.appendChild(modelPanel());
       shell.appendChild(methodFooter());
     }

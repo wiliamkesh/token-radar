@@ -579,24 +579,39 @@ export function parseSnapshot(text: string): Snapshot {
   };
 }
 
-/** Why a board is not one the gate will take, or null: coverage, ranks, order, one shared implied value, and farm steps. */
-export function boardIssue(board: BoardRow[], snapshot: Snapshot): string | null {
+/** Every way a board is not one the gate will take, as a list, or an empty list when it is sound.
+ * The gate refuses a board for one reason; this collects all of them, so a builder fixing a board
+ * sees everything at once instead of one failure at a time. */
+export function boardIssues(board: BoardRow[], snapshot: Snapshot): string[] {
+  const issues: string[] = [];
   const slugs = new Set(board.map((r) => r.slug));
   const missing = snapshot.watchlist.filter((s) => !slugs.has(s));
-  if (missing.length > 0) return `the board misses ${missing.length} watchlist slug${missing.length === 1 ? '' : 's'}: ${missing.slice(0, 5).join(', ')}`;
+  if (missing.length > 0) issues.push(`the board misses ${missing.length} watchlist slug${missing.length === 1 ? '' : 's'}: ${missing.slice(0, 5).join(', ')}`);
   const ranks = board.map((r) => r.rank).sort((a, b) => a - b);
-  for (let i = 0; i < ranks.length; i++) if (ranks[i] !== i + 1) return `rank ${i + 1} is ${ranks[i]}`;
-  for (let i = 1; i < board.length; i++) if (board[i]!.implied_value_usd > board[i - 1]!.implied_value_usd) return `row ${i + 1} outranks row ${i} on implied value`;
+  for (let i = 0; i < ranks.length; i++) {
+    if (ranks[i] !== i + 1) { issues.push(`rank ${i + 1} is ${ranks[i]}`); break; }
+  }
+  for (let i = 1; i < board.length; i++) {
+    if (board[i]!.implied_value_usd > board[i - 1]!.implied_value_usd) { issues.push(`row ${i + 1} outranks row ${i} on implied value`); break; }
+  }
   if (board.length >= 2 && board[0]!.implied_value_usd === board[board.length - 1]!.implied_value_usd) {
-    return `all ${board.length} rows share the same implied value $${board[0]!.implied_value_usd}: a board that ranks nothing by value is not a ranking`;
+    issues.push(`all ${board.length} rows share the same implied value $${board[0]!.implied_value_usd}: a board that ranks nothing by value is not a ranking`);
   }
   for (const r of board) {
     const steps = r.farm_steps;
-    if (steps.length < 3 || steps.length > 12) return `${r.slug} has ${steps.length} farm steps`;
-    for (const s of steps) if (s.length < 20 || s.length > 600) return `${r.slug} has a farm step of ${s.length} characters`;
-    if (!Number.isSafeInteger(r.implied_value_usd) || r.implied_value_usd <= 0) return `${r.slug} has implied value ${r.implied_value_usd}`;
+    if (steps.length < 3 || steps.length > 12) { issues.push(`${r.slug} has ${steps.length} farm steps`); continue; }
+    for (const s of steps) {
+      if (s.length < 20 || s.length > 600) { issues.push(`${r.slug} has a farm step of ${s.length} characters`); break; }
+    }
+    if (!Number.isSafeInteger(r.implied_value_usd) || r.implied_value_usd <= 0) issues.push(`${r.slug} has implied value ${r.implied_value_usd}`);
   }
-  return null;
+  return issues;
+}
+
+/** Why a board is not one the gate will take, or null: the first issue, or none. */
+export function boardIssue(board: BoardRow[], snapshot: Snapshot): string | null {
+  const issues = boardIssues(board, snapshot);
+  return issues.length > 0 ? issues[0]! : null;
 }
 
 /** A compact data.js: the dashboard's whole dataset as one script, no fetch and no network. */
