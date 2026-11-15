@@ -7,7 +7,7 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var app = document.getElementById('board');
-  var state = { q: '', category: 'all', chain: 'all', tab: 'pre-token', sort: 'implied', dir: -1, selected: null, compare: [] };
+  var state = { q: '', category: 'all', chain: 'all', tab: 'pre-token', sort: 'implied', dir: -1, selected: null, compare: [], watchlistOnly: false };
 
   // Two protocols, side by side: the comparison is the radar's second lens. A single rank says
   // which protocol the model values more; a comparison says why, by laying the two protocols'
@@ -284,12 +284,42 @@
   function rows() {
     var q = state.q.trim().toLowerCase();
     return DATA.rows.filter(function (r) {
+      if (state.watchlistOnly && !r.watchlist) return false;
       if (state.category !== 'all' && r.category !== state.category) return false;
       if (state.chain !== 'all' && !(r.chains || []).some(function (c) { return c === state.chain; })) return false;
       if (!q) return true;
       var hay = [r.name, r.slug, r.category, (r.chains || []).join(' ')].join(' ').toLowerCase();
       return hay.indexOf(q) >= 0;
     });
+  }
+  // The week's movers: the five pre-token protocols whose TVL grew fastest in seven days, so a
+  // reader can see momentum at a glance instead of only the model's slow-moving value. Growth is
+  // one input to implied value, not the whole verdict: a fast mover with a small TVL still ranks
+  // below a slow giant, and the table shows both.
+  function moversPanel() {
+    var movers = DATA.rows.filter(function (r) { return r.change_7d !== null && r.change_7d !== undefined; })
+      .sort(function (a, b) { return b.change_7d - a.change_7d; })
+      .slice(0, 5);
+    if (!movers.length) return null;
+    return el('section', { class: 'panel movers' },
+      el('h2', { text: 'Fastest movers this week' }),
+      el('p', { class: 'sub', text: 'The five pre-token protocols with the strongest seven-day TVL growth. Momentum is one input to implied value, not the verdict: a fast mover on a small base still ranks below a slow giant, and the board shows both.' }),
+      el('div', { class: 'mover-list' }, movers.map(function (r) {
+        return el('button', { type: 'button', class: 'mover', onclick: function () { openDetail(r.slug); } },
+          el('span', { class: 'mover-growth', text: fmtPct(r.change_7d) }),
+          el('b', { text: r.name }),
+          el('span', { class: 'sub', text: 'Rank ' + r.rank + ' · ' + fmtUsd(r.tvl_usd) + ' TVL · ' + fmtUsd(r.implied_value_usd) + ' implied' })
+        );
+      }))
+    );
+  }
+  // The methodology, in one place: where the figures come from, what the model does with them, and
+  // what it cannot know. A radar that hides its method asks to be trusted; this one shows it.
+  function methodFooter() {
+    return el('footer', { class: 'method' },
+      el('h2', { text: 'Method, in short' }),
+      el('p', { text: 'The snapshot is DefiLlama\'s protocol index as of ' + DATA.as_of + ': ' + DATA.rows.length + ' pre-token protocols scored and ' + DATA.live.length + ' live-token protocols set aside. The watchlist is every protocol with at least $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL and no token on record; the early radar adds the pre-token protocols below that floor. Implied value is TVL times a category multiple — the FDV/TVL the snapshot\'s own live-token protocols in that category trade at — times a growth factor and a maturity factor for how long the protocol has run with no token. Wrapped, staked and bridged products of a token that already trades are left out by the watchlist\'s own rules. The farm plan for each protocol is derived from its category, chains, TVL and age, never from a hand-written list. Nothing here is a price, a promise or investment advice.' })
+    );
   }
   function sortedRows(list) {
     var key = state.sort;
@@ -350,12 +380,14 @@
     var pre = el('button', { type: 'button', 'aria-pressed': state.tab === 'pre-token' ? 'true' : 'false', text: 'Pre-token', onclick: function () { state.tab = 'pre-token'; render(); } });
     var live = el('button', { type: 'button', 'aria-pressed': state.tab === 'live' ? 'true' : 'false', text: 'Live token', onclick: function () { state.tab = 'live'; render(); } });
     var csv = el('button', { type: 'button', class: 'button', text: 'Download board as CSV', onclick: downloadCsv });
+    var wl = el('button', { type: 'button', class: 'button', 'aria-pressed': state.watchlistOnly ? 'true' : 'false', text: state.watchlistOnly ? 'Watchlist only: on' : 'Watchlist only', onclick: function () { state.watchlistOnly = !state.watchlistOnly; render(); } });
     return el('div', { class: 'controls' },
       el('div', { class: 'field' }, el('label', { for: 'q', text: 'Search' }), search),
       el('div', { class: 'field' }, el('label', { for: 'category', text: 'Category' }), select),
       el('div', { class: 'field' }, el('label', { for: 'chain', text: 'Chain' }), chainSelect),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Token status' }), el('div', { class: 'tabs' }, pre, live)),
       el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Export' }), csv),
+      el('div', { class: 'field' }, el('span', { class: 'sub', text: 'Scope' }), wl),
       el('span', { class: 'count', text: state.tab === 'pre-token' ? rows().length + ' rows shown' : DATA.live.length + ' live-token protocols' })
     );
   }
@@ -537,7 +569,9 @@
     if (state.tab === 'pre-token') {
       shell.appendChild(comparePanel());
       shell.appendChild(leadersPanel());
+      shell.appendChild(moversPanel());
       shell.appendChild(modelPanel());
+      shell.appendChild(methodFooter());
     }
     app.appendChild(shell);
     app.setAttribute('aria-busy', 'false');

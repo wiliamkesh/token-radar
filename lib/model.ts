@@ -525,6 +525,37 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
   return { board, radar };
 }
 
+/** One field's value, checked against a test, or `fallback` when the value is absent or fails it. */
+function field<T>(value: unknown, test: (v: unknown) => v is T, fallback: T): T {
+  return test(value) ? value : fallback;
+}
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v);
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isStrList = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === 'string');
+const isDate = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+
+/** A protocol entry out of one raw record, refused unless it carries a slug, a name and a TVL. */
+function parseProtocol(v: unknown, i: number): SnapshotProtocol {
+  if (!isObj(v)) throw new SnapshotError(`snapshot.json's protocol ${i} is not an object`);
+  if (!isStr(v.slug) || !isStr(v.name) || !isNum(v.tvl_usd)) {
+    throw new SnapshotError(`snapshot.json's protocol ${i} lacks a slug, a name or a TVL`);
+  }
+  return {
+    slug: v.slug,
+    name: v.name,
+    category: field(v.category, isStr, null),
+    chains: Array.isArray(v.chains) ? v.chains.filter((c): c is string => typeof c === 'string') : [],
+    tvl_usd: v.tvl_usd,
+    change_7d: field(v.change_7d, isNum, null),
+    mcap_usd: field(v.mcap_usd, isNum, null),
+    listed_at: field(v.listed_at, isStr, null),
+    gecko_id: field(v.gecko_id, isStr, null),
+    symbol: field(v.symbol, isStr, null),
+  };
+}
+
 /** The snapshot out of a file's text, refused unless it is the shape the model scores. */
 export function parseSnapshot(text: string): Snapshot {
   let raw: unknown;
@@ -533,38 +564,18 @@ export function parseSnapshot(text: string): Snapshot {
   } catch {
     throw new SnapshotError('snapshot.json is not JSON');
   }
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new SnapshotError('snapshot.json is not a JSON object');
-  const o = raw as Record<string, unknown>;
-  if (typeof o.as_of !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(o.as_of)) throw new SnapshotError('snapshot.json has no as_of date');
-  if (typeof o.source !== 'string') throw new SnapshotError('snapshot.json has no source');
-  if (typeof o.floor_usd !== 'number' || !Number.isSafeInteger(o.floor_usd) || o.floor_usd <= 0) throw new SnapshotError('snapshot.json has no floor_usd');
-  if (!Array.isArray(o.protocols)) throw new SnapshotError('snapshot.json has no protocols array');
-  if (!Array.isArray(o.watchlist) || o.watchlist.some((s) => typeof s !== 'string')) throw new SnapshotError('snapshot.json has no watchlist of slugs');
-  const protocols = o.protocols.map((v, i) => {
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new SnapshotError(`snapshot.json's protocol ${i} is not an object`);
-    const p = v as Record<string, unknown>;
-    if (typeof p.slug !== 'string' || typeof p.name !== 'string' || typeof p.tvl_usd !== 'number' || !Number.isFinite(p.tvl_usd)) {
-      throw new SnapshotError(`snapshot.json's protocol ${i} lacks a slug, a name or a TVL`);
-    }
-    return {
-      slug: p.slug,
-      name: p.name,
-      category: typeof p.category === 'string' ? p.category : null,
-      chains: Array.isArray(p.chains) ? p.chains.filter((c): c is string => typeof c === 'string') : [],
-      tvl_usd: p.tvl_usd,
-      change_7d: typeof p.change_7d === 'number' && Number.isFinite(p.change_7d) ? p.change_7d : null,
-      mcap_usd: typeof p.mcap_usd === 'number' && Number.isFinite(p.mcap_usd) ? p.mcap_usd : null,
-      listed_at: typeof p.listed_at === 'string' ? p.listed_at : null,
-      gecko_id: typeof p.gecko_id === 'string' ? p.gecko_id : null,
-      symbol: typeof p.symbol === 'string' ? p.symbol : null,
-    };
-  });
+  if (!isObj(raw)) throw new SnapshotError('snapshot.json is not a JSON object');
+  if (!isDate(raw.as_of)) throw new SnapshotError('snapshot.json has no as_of date');
+  if (!isStr(raw.source)) throw new SnapshotError('snapshot.json has no source');
+  if (!isInt(raw.floor_usd) || raw.floor_usd <= 0) throw new SnapshotError('snapshot.json has no floor_usd');
+  if (!Array.isArray(raw.protocols)) throw new SnapshotError('snapshot.json has no protocols array');
+  if (!isStrList(raw.watchlist)) throw new SnapshotError('snapshot.json has no watchlist of slugs');
   return {
-    as_of: o.as_of,
-    source: o.source,
-    floor_usd: o.floor_usd,
-    protocols,
-    watchlist: o.watchlist as string[],
+    as_of: raw.as_of,
+    source: raw.source,
+    floor_usd: raw.floor_usd,
+    protocols: raw.protocols.map((v, i) => parseProtocol(v, i)),
+    watchlist: raw.watchlist,
   };
 }
 

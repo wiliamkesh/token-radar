@@ -162,6 +162,23 @@ tbody tr[data-selected="true"] { background: color-mix(in srgb, var(--accent) 8%
 .leader-value { font-family: var(--font-num); font-size: 13px; color: var(--accent); }
 .leader .sub { margin-top: 0; }
 
+/* The fastest movers: one row per protocol, growth first so momentum reads at a glance. */
+.movers { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
+.mover-list { display: grid; gap: var(--step-2); }
+.mover {
+  display: flex; align-items: baseline; gap: var(--step-3); text-align: left;
+  padding: var(--step-2) var(--step-3); border: 1px solid var(--border);
+  border-radius: var(--radius-control); background: var(--surface);
+}
+.mover:hover { border-color: var(--accent); }
+.mover-growth { font-family: var(--font-num); font-weight: 700; color: var(--accent); min-width: 72px; }
+.mover b { font-weight: 600; }
+.mover .sub { margin-left: auto; text-align: right; }
+/* The methodology footer: the radar's method in plain words, at the bottom of the page. */
+.method { margin-top: var(--step-4); padding: var(--step-5); border-top: 1px solid var(--border); display: grid; gap: var(--step-2); }
+.method h2 { font-size: 16px; }
+.method p { color: var(--muted); font-size: 13px; max-width: 78ch; }
+
 @media (max-width: 900px) {
   .shell { padding: var(--step-4); }
   .lede { grid-template-columns: 1fr; gap: var(--step-4); }
