@@ -100,10 +100,9 @@ tbody tr[data-selected="true"] { background: color-mix(in srgb, var(--accent) 8%
 .model { margin-top: var(--step-4); padding: var(--step-5); display: grid; gap: var(--step-3); }
 .formula { font-family: var(--font-num); font-size: 13px; line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
 .badge { display: inline-block; margin-top: 2px; padding: 1px 6px; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
-.multiples { display: grid; gap: var(--step-2); margin-top: var(--step-2); }
-.multiples h3 { font-size: 14px; }
-.multiples table { font-size: 13px; }
-.multiples th, .multiples td { padding: var(--step-2) var(--step-3); }
+/* The backtest and the launch score, inside the model panel: a heading and a short paragraph each. */
+.validation { display: grid; gap: var(--step-2); margin-top: var(--step-2); }
+.validation h3 { font-size: 14px; }
 .empty { padding: var(--step-7) var(--step-5); text-align: center; display: grid; gap: var(--step-3); justify-items: center; }
 .empty p { color: var(--muted); }
 .button { min-height: 36px; padding: 0 var(--step-4); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
