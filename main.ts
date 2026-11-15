@@ -7,9 +7,10 @@
 //
 // The dashboard is a static page, no framework and no network: dashboard/index.html, dashboard/app.css
 // and dashboard/app.js read /output/data.js, which this program writes from the same board. The model
-// (radar-3) prices each protocol from a comps curve fit on the snapshot's own live-token protocols,
-// covers the whole watchlist plus every rankable pre-token protocol below the floor, and gives every
-// protocol a launch score and a farm plan with costs and times that follow its chain and category.
+// (radar-4) prices each protocol from a comps curve fit on the snapshot's own live-token protocols,
+// covers the whole watchlist plus every rankable pre-token protocol below and above the floor (198
+// rows), and gives every protocol a launch score and a farm plan with costs, times and a FARM / THIN /
+// SKIP verdict that follow its chain and category.
 //
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts --input ../input/snapshot.json

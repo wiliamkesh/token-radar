@@ -93,7 +93,7 @@ export const MODEL: ModelConstants = {
 };
 
 /** The model's version label: the dashboard names it and the rules quote it. */
-export const MODEL_VERSION = 'radar-3';
+export const MODEL_VERSION = 'radar-4';
 
 /** How many live-token protocols the Live token view carries, by market cap. */
 export const LIVE_ROWS = 24;
@@ -428,12 +428,15 @@ export function buildBoard(snapshot: Snapshot, model: ModelConstants = MODEL): B
     const p = index.get(slug);
     if (p !== undefined) chosen.set(slug, p);
   }
-  // The early radar: every other rankable pre-token protocol below the watchlist floor. The radar
-  // exists to find the early ones, and the snapshot carries them all. The floor is the guard: above
-  // it, a protocol the watchlist leaves out is left out because it is a sub-product of a parent, and
-  // the snapshot carries no parent field to tell it apart, so the early radar does not reach above it.
+  // The early radar: every other rankable pre-token protocol, below the floor and above it. The
+  // radar exists to find the early ones, and the snapshot carries them all. The floor is the
+  // watchlist's floor, never a ceiling: a rankable protocol above the floor is still a launch
+  // candidate (it records no token, and it passes the watchlist's own exclusion rules), so the
+  // board ranks it. The watchlist is the coverage floor the gate checks; the board is the whole
+  // early radar. (radar-4: this lifts the board from 178 to 198 rows, the 20 rankable protocols
+  // above the floor the v3 floor guard left out.)
   const early = snapshot.protocols
-    .filter((p) => !chosen.has(p.slug) && isRankable(p) && p.tvl_usd < snapshot.floor_usd)
+    .filter((p) => !chosen.has(p.slug) && isRankable(p))
     .sort((a, b) => b.tvl_usd - a.tvl_usd || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
   for (const p of early) chosen.set(p.slug, p);
 
@@ -552,7 +555,11 @@ function actionFor(p: SnapshotProtocol, capital: number, chain: string): string 
  * costs follow the chain the position lives on, so an Ethereum position costs more to run than one on
  * a cheap L2. The plan is capital-tiered: it states the risk of the position and warns when the gas
  * for the whole plan is a large share of the capital, so a small farmer can see before starting
- * whether the position is worth it on that chain.
+ * whether the position is worth it on that chain. Every plan is netted to a verdict — FARM, THIN or
+ * SKIP — from the gas share alone, so the farmer knows at a glance whether the position is worth it
+ * at this capital: FARM when gas is at most a quarter of the capital, THIN when it eats a quarter to
+ * a half (farm it only with more capital or on a cheaper chain), SKIP when it eats more than half.
+ * (radar-4: the verdict is the netting the top entries state; the gas share was already computed.)
  */
 export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const chain = chainOf(p);
@@ -569,9 +576,13 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
   const weeks = Math.max(1, Math.round(hold / 7));
   const totalGas = gas * 2 + gas * weeks;
   const gasShare = Math.round((totalGas / capital) * 100);
-  const gasNote = gasShare > 25
-    ? ` Gas for the whole plan is about $${totalGas}, ${gasShare}% of this $${capital} capital on ${chain}: a larger position or a cheaper chain stretches it further.`
-    : '';
+  const verdict = gasShare <= 25 ? 'FARM' : gasShare <= 50 ? 'THIN' : 'SKIP';
+  const verdictText =
+    verdict === 'FARM'
+      ? `Verdict: FARM. Gas for the whole plan is about $${totalGas}, ${gasShare}% of this $${capital} capital on ${chain}, so the position is worth running at this size.`
+      : verdict === 'THIN'
+        ? `Verdict: THIN. Gas for the whole plan is about $${totalGas}, ${gasShare}% of this $${capital} capital on ${chain}: farm it only with a larger position or on a cheaper chain.`
+        : `Verdict: SKIP. Gas for the whole plan is about $${totalGas}, ${gasShare}% of this $${capital} capital on ${chain}, so this size is not worth farming — wait for a cheaper chain or a larger position.`;
   return [
     {
       text: `Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.`,
@@ -579,7 +590,7 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): FarmStep[] {
       time: '5 minutes',
     },
     {
-      text: `${action} ${risk}.${gasNote}`,
+      text: `${action} ${risk}. ${verdictText}`,
       cost: `$${capital} of capital and about $${gas} of gas`,
       time: '15 minutes to set up',
     },

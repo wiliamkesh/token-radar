@@ -292,12 +292,15 @@
     var weeks = Math.max(1, Math.round(hold / 7));
     var totalGas = gas * 2 + gas * weeks;
     var gasShare = Math.round((totalGas / capital) * 100);
-    var gasNote = gasShare > 25
-      ? ' Gas for the whole plan is about $' + totalGas + ', ' + gasShare + '% of this $' + capital + ' capital on ' + chain + ': a larger position or a cheaper chain stretches it further.'
-      : '';
+    var verdict = gasShare <= 25 ? 'FARM' : gasShare <= 50 ? 'THIN' : 'SKIP';
+    var verdictText = verdict === 'FARM'
+      ? 'Verdict: FARM. Gas for the whole plan is about $' + totalGas + ', ' + gasShare + '% of this $' + capital + ' capital on ' + chain + ', so the position is worth running at this size.'
+      : verdict === 'THIN'
+        ? 'Verdict: THIN. Gas for the whole plan is about $' + totalGas + ', ' + gasShare + '% of this $' + capital + ' capital on ' + chain + ': farm it only with a larger position or on a cheaper chain.'
+        : 'Verdict: SKIP. Gas for the whole plan is about $' + totalGas + ', ' + gasShare + '% of this $' + capital + ' capital on ' + chain + ', so this size is not worth farming — wait for a cheaper chain or a larger position.';
     return [
       { text: 'Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.', cost: 'about $' + gas + ' of gas for the first transaction on ' + chain, time: '5 minutes' },
-      { text: actionFor(p, capital, chain) + ' ' + risk + '.' + gasNote, cost: '$' + capital + ' of capital and about $' + gas + ' of gas', time: '15 minutes to set up' },
+      { text: actionFor(p, capital, chain) + ' ' + risk + '. ' + verdictText, cost: '$' + capital + ' of capital and about $' + gas + ' of gas', time: '15 minutes to set up' },
       { text: 'Make one qualifying action each week, such as a deposit, a borrow, a swap or a vote.', cost: 'about $' + weekly + ' of gas a month on ' + chain, time: '10 minutes a week' },
       { text: 'Hold the position for at least ' + hold + ' days so the activity is counted in more than one snapshot.', cost: 'the $' + capital + ' stays in the position', time: hold + ' days' },
       { text: "Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes.", cost: 'no fee to check, and never pay to claim', time: '10 minutes' },
@@ -413,12 +416,12 @@
     return el('section', { class: 'lede' },
       el('div', null,
         el('h1', { text: DATA.watchlist_size + ' watchlist protocols, ranked by implied value' }),
-        el('p', { text: 'The watchlist is the floor: every protocol with at least $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL and no token on record. The early radar adds ' + DATA.early_size + ' pre-token protocols below that floor. Implied value is a model, not a promise.' })
+        el('p', { text: 'The watchlist is the floor: every protocol with at least $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL and no token on record. The early radar adds ' + DATA.early_size + ' more pre-token protocols, below and above that floor. Implied value is a model, not a promise.' })
       ),
       el('div', { class: 'facts' },
         el('div', { class: 'fact' }, el('span', { text: 'Watchlist covered' }), el('b', { text: DATA.watchlist_size + ' / ' + DATA.watchlist_size })),
         el('div', { class: 'fact' }, el('span', { text: 'Pre-token rows scored' }), el('b', { text: String(DATA.board_size) })),
-        el('div', { class: 'fact' }, el('span', { text: 'Early rows below the floor' }), el('b', { text: String(DATA.early_size) })),
+        el('div', { class: 'fact' }, el('span', { text: 'Early rows beyond the watchlist' }), el('b', { text: String(DATA.early_size) })),
         el('div', { class: 'fact' }, el('span', { text: 'Live-token protocols set aside' }), el('b', { text: String(DATA.live_size) })),
         el('div', { class: 'fact' }, el('span', { text: 'Total implied value' }), el('b', { text: fmtUsd(totalImplied) }))
       )
